@@ -10,7 +10,11 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:8080', 'https://projectdzi.netlify.app'],
+    methods: ['POST'],
+    allowedHeaders: ['Content-Type']
+}));
 
 // Initialize SQLite database
 const db = new sqlite3.Database('orders.db', (err) => {
