@@ -1,10 +1,11 @@
-require('dotenv').config({ path: './dzi.env' });
+require('dotenv').config();
 
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const nodemailer = require('nodemailer');
 const cors = require('cors');
 const sanitizeHtml = require('sanitize-html');
+const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -16,12 +17,13 @@ app.use(cors({
     allowedHeaders: ['Content-Type']
 }));
 
-// Initialize SQLite database
-const db = new sqlite3.Database('orders.db', (err) => {
+// Initialize SQLite database with a persistent path for Render
+const dbPath = path.resolve('/data/orders.db');
+const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Database connection error:', err.message);
     } else {
-        console.log('Connected to SQLite database.');
+        console.log('Connected to SQLite database at', dbPath);
         db.run(`CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -103,7 +105,7 @@ app.post('/api/orders', (req, res) => {
                 return res.status(500).json({ error: 'Failed to save order.' });
             }
 
-            const mailOptions = {
+            const mailOptionsAdmin = {
                 from: emailUser,
                 to: 'trekuray@gmail.com',
                 subject: 'New Order from Dziquist Website',
@@ -118,12 +120,38 @@ app.post('/api/orders', (req, res) => {
                 `
             };
 
-            transporter.sendMail(mailOptions, (error, info) => {
+            const mailOptionsCustomer = {
+                from: emailUser,
+                to: sanitizedEmail,
+                subject: 'Order Confirmation - Dziquist Transport',
+                text: `
+                    Dear ${sanitizedName},
+
+                    Thank you for your order with Dziquist Transport and Logistics!
+                    Order Details:
+                    - Service: ${sanitizedService}
+                    - Details: ${sanitizedDetails}
+                    - Phone: ${sanitizedPhone}
+
+                    We will contact you shortly to confirm. For any queries, reply to this email or call us.
+
+                    Best,
+                    Dziquist Transport Team
+                `
+            };
+
+            transporter.sendMail(mailOptionsAdmin, (error) => {
                 if (error) {
-                    console.error('Email sending error:', error.message);
-                    return res.status(200).json({ message: 'Order saved, but failed to send email.' });
+                    console.error('Admin email sending error:', error.message);
                 }
-                console.log('Email sent successfully:', info.response);
+            });
+
+            transporter.sendMail(mailOptionsCustomer, (error) => {
+                if (error) {
+                    console.error('Customer email sending error:', error.message);
+                    return res.status(200).json({ message: 'Order saved, but failed to send customer confirmation.' });
+                }
+                console.log('Customer email sent successfully');
                 res.status(200).json({ message: 'Order submitted successfully!' });
             });
         }
